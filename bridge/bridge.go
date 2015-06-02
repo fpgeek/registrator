@@ -13,6 +13,10 @@ import (
 	dockerapi "github.com/fsouza/go-dockerclient"
 )
 
+const (
+	marathonAppIDEnvName = "MARATHON_APP_ID"
+)
+
 type Bridge struct {
 	sync.Mutex
 	registry       RegistryAdapter
@@ -112,6 +116,19 @@ func (b *Bridge) Sync(quiet bool) {
 			}
 		}
 	}
+
+	if b.config.DeregisterWhenSync {
+		allServices := []*Service{}
+		for _, serviceList := range b.services {
+			for _, service := range serviceList {
+				allServices = append(allServices, service)
+			}
+		}
+
+		if err := b.registry.DeregisterWhenSync(allServices); err != nil {
+			log.Fatal(err)
+		}
+	}
 }
 
 func (b *Bridge) add(containerId string, quiet bool) {
@@ -176,7 +193,13 @@ func (b *Bridge) add(containerId string, quiet bool) {
 func (b *Bridge) newService(port ServicePort, isgroup bool) *Service {
 	container := port.container
 	defaultName := strings.Split(path.Base(container.Config.Image), ":")[0]
-	if isgroup {
+	if b.config.UseMarathonAppID {
+		env := dockerapi.Env(container.Config.Env)
+		if env.Exists(marathonAppIDEnvName) {
+			defaultName = strings.Replace(strings.TrimLeft(env.Get(marathonAppIDEnvName), "/"), "/", "-", -1)
+		}
+	}
+	if isgroup || b.config.ForceExposedPort {
 		defaultName = defaultName + "-" + port.ExposedPort
 	}
 
@@ -208,6 +231,9 @@ func (b *Bridge) newService(port ServicePort, isgroup bool) *Service {
 	service.Origin = port
 	service.ID = hostname + ":" + container.Name[1:] + ":" + port.ExposedPort
 	service.Name = mapDefault(metadata, "name", defaultName)
+	if b.config.NamePrefix != "" {
+		service.Name = b.config.NamePrefix + "-" + service.Name
+	}
 	var p int
 	if b.config.Internal == true {
 		service.IP = port.ExposedIP

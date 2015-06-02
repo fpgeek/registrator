@@ -53,6 +53,10 @@ func (r *ConsulAdapter) Ping() error {
 }
 
 func (r *ConsulAdapter) Register(service *bridge.Service) error {
+	if r.isRegisteredService(service) {
+		return nil
+	}
+
 	registration := new(consulapi.AgentServiceRegistration)
 	registration.ID = service.ID
 	registration.Name = service.Name
@@ -74,7 +78,11 @@ func (r *ConsulAdapter) buildCheck(service *bridge.Service) *consulapi.AgentServ
 	} else if ttl := service.Attrs["check_ttl"]; ttl != "" {
 		check.TTL = ttl
 	} else {
-		return nil
+		if service.Origin.PortType == "tcp" {
+			check.Script = fmt.Sprintf("nc -z %s %d", service.IP, service.Port)
+		} else {
+			return nil
+		}
 	}
 	if check.Script != "" {
 		if interval := service.Attrs["check_interval"]; interval != "" {
@@ -92,4 +100,39 @@ func (r *ConsulAdapter) Deregister(service *bridge.Service) error {
 
 func (r *ConsulAdapter) Refresh(service *bridge.Service) error {
 	return nil
+}
+
+func (r *ConsulAdapter) DeregisterWhenSync(services []*bridge.Service) error {
+	registedServiceMap, err := r.client.Agent().Services()
+	if err != nil {
+		return err
+	}
+
+	for _, service := range services {
+		if _, ok := registedServiceMap[service.ID]; ok {
+			delete(registedServiceMap, service.ID)
+		}
+	}
+
+	for _, service := range registedServiceMap {
+		log.Printf("Removing a service: %+v\n", service.ID)
+		if err := r.client.Agent().ServiceDeregister(service.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *ConsulAdapter) isRegisteredService(service *bridge.Service) bool {
+	registedServiceMap, err := r.client.Agent().Services()
+	if err != nil {
+		return false
+	}
+
+	if agentService, ok := registedServiceMap[service.ID]; ok {
+		if service.Port == agentService.Port {
+			return true
+		}
+	}
+	return false
 }

@@ -20,7 +20,11 @@ var refreshInterval = flag.Int("ttl-refresh", 0, "Frequency with which service T
 var refreshTtl = flag.Int("ttl", 0, "TTL for services (default is no expiry)")
 var forceTags = flag.String("tags", "", "Append tags for all registered services")
 var resyncInterval = flag.Int("resync", 0, "Frequency with which services are resynchronized")
+var deregisterWhenSync = flag.Bool("deregister-sync", false, "Deregister services that's not exists when resynchronizing the services")
 var deregister = flag.String("deregister", "always", "Deregister exited services \"always\" or \"on-success\"")
+var namePrefix = flag.String("prefix", "", "Define prefix of service name")
+var useMarathonAppID = flag.Bool("use-marathon-app-id", false, "Use MARATHON_APP_ID environment variable as service name")
+var forceExposedPort = flag.Bool("exposed-port", false, "Append exposed port for all registered services")
 
 func getopt(name, def string) string {
 	if env := os.Getenv(name); env != "" {
@@ -61,12 +65,16 @@ func main() {
 	}
 
 	b := bridge.New(docker, flag.Arg(0), bridge.Config{
-		HostIp:          *hostIp,
-		Internal:        *internal,
-		ForceTags:       *forceTags,
-		RefreshTtl:      *refreshTtl,
-		RefreshInterval: *refreshInterval,
-		DeregisterCheck: *deregister,
+		HostIp:             *hostIp,
+		Internal:           *internal,
+		ForceTags:          *forceTags,
+		RefreshTtl:         *refreshTtl,
+		RefreshInterval:    *refreshInterval,
+		DeregisterCheck:    *deregister,
+		DeregisterWhenSync: *deregisterWhenSync,
+		NamePrefix:         *namePrefix,
+		UseMarathonAppID:   *useMarathonAppID,
+		ForceExposedPort:   *forceExposedPort,
 	})
 
 	// Start event listener before listing containers to avoid missing anything

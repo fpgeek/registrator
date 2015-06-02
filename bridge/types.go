@@ -16,15 +16,21 @@ type RegistryAdapter interface {
 	Register(service *Service) error
 	Deregister(service *Service) error
 	Refresh(service *Service) error
+	DeregisterWhenSync(services []*Service) error
 }
 
 type Config struct {
-	HostIp          string
-	Internal        bool
-	ForceTags       string
-	RefreshTtl      int
-	RefreshInterval int
-	DeregisterCheck string
+	HostIp                 string
+	Internal               bool
+	ForceTags              string
+	RefreshTtl             int
+	RefreshInterval        int
+	DeregisterCheck        string
+	DeregisterWhenSync     bool
+	RemoveServicesWhenSync bool
+	NamePrefix             string
+	UseMarathonAppID       bool
+	ForceExposedPort       bool
 }
 
 type Service struct {
